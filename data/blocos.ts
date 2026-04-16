@@ -1,5 +1,4 @@
-import cloudinaryPorBlocoRaw from "../scripts/cloudinary-por-bloco.json";
-import cloudinaryTelhadosRaw from "../scripts/cloudinary-telhados.json";
+import cloudinarySincronizadoRaw from "../scripts/cloudinary-sincronizado.json";
 
 export interface Bloco {
   id: number;
@@ -18,7 +17,7 @@ export interface Bloco {
   linkGoogleDrive: string;
 }
 
-const BLOCOS_COM_PASTA_NO_CLOUDINARY = [1, 2, 5, 6, 7, 8, 9, 10, 11, 12] as const;
+const BLOCOS_COM_PASTA_NO_CLOUDINARY = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
 type BlocoId = (typeof BLOCOS_COM_PASTA_NO_CLOUDINARY)[number];
 
 export const MAPA_AEREO_URL =
@@ -27,6 +26,8 @@ export const MAPA_AEREO_URL =
 const HOTSPOTS: Record<BlocoId, Bloco["hotspot"]> = {
   1: { top: "46%", left: "13%", width: "12%", height: "26%" },
   2: { top: "46%", left: "27%", width: "12%", height: "26%" },
+  3: { top: "46%", left: "41%", width: "12%", height: "26%" },
+  4: { top: "46%", left: "55%", width: "12%", height: "26%" },
   5: { top: "46%", left: "69%", width: "12%", height: "26%" },
   6: { top: "46%", left: "82%", width: "11%", height: "26%" },
   7: { top: "18.7%", left: "13%", width: "12%", height: "24%" },
@@ -38,20 +39,26 @@ const HOTSPOTS: Record<BlocoId, Bloco["hotspot"]> = {
 };
 
 const DRIVE_LINKS: Record<BlocoId, string> = {
-  1: "https://drive.google.com/drive/folders/1BLOCO001_PLACEHOLDER",
-  2: "https://drive.google.com/drive/folders/1BLOCO002_PLACEHOLDER",
-  5: "https://drive.google.com/drive/folders/1BLOCO005_PLACEHOLDER",
-  6: "https://drive.google.com/drive/folders/1BLOCO006_PLACEHOLDER",
-  7: "https://drive.google.com/drive/folders/1BLOCO007_PLACEHOLDER",
-  8: "https://drive.google.com/drive/folders/1BLOCO008_PLACEHOLDER",
-  9: "https://drive.google.com/drive/folders/1BLOCO009_PLACEHOLDER",
-  10: "https://drive.google.com/drive/folders/1BLOCO010_PLACEHOLDER",
-  11: "https://drive.google.com/drive/folders/1BLOCO011_PLACEHOLDER",
-  12: "https://drive.google.com/drive/folders/1BLOCO012_PLACEHOLDER",
+  1: "https://drive.google.com/drive/folders/1pbtNFx0T4Pb8Z2-CwoGKnJ80lNSLhegG?usp=sharing",
+  2: "https://drive.google.com/drive/folders/1QO06LXBhPi2IhUDpejYxZ2HsgnK2dpOY?usp=sharing",
+  3: "https://drive.google.com/drive/folders/1CU-E6VtFOzXGNJWxB50EHb67ZK37RneV?usp=sharing",
+  4: "https://drive.google.com/drive/folders/16ISMCHSZHFhF6Pu1_BUMSzT7FUgXMJ1F?usp=sharing",
+  5: "https://drive.google.com/drive/folders/1KjRjCgJoHP31b2qfftiANZzNyhoeq6JC?usp=sharing",
+  6: "https://drive.google.com/drive/folders/1f0ddowfLtyPafGF0CDS0U0nWUlfeVv6d?usp=sharing",
+  7: "https://drive.google.com/drive/folders/1557nHNNBLcPN5rsUrqKxDYBH7xX-w8TC?usp=sharing",
+  8: "https://drive.google.com/drive/folders/12bGPvK_YfLPmmEpKVVefuJvytwF_T75R?usp=sharing",
+  9: "https://drive.google.com/drive/folders/1FcdnO4kjGa6OGE1f2xLLY7c-EsoOi6qp?usp=sharing",
+  10: "https://drive.google.com/drive/folders/1xCZz34nxpbmHarVWRryoOFj3Otz7KO1a?usp=sharing",
+  11: "https://drive.google.com/drive/folders/1TcsTSbvbxoRZd4Jj-rsccN2_NuUUW-SV?usp=sharing",
+  12: "https://drive.google.com/drive/folders/1jRTWCmgMUfGij2iMTd1j8qLZ16iXOad9?usp=sharing",
 };
 
-const cloudinaryPorBloco = cloudinaryPorBlocoRaw as Record<string, string[]>;
-const cloudinaryTelhados = cloudinaryTelhadosRaw as Record<string, string>;
+interface CloudinarySincronizadoEntry {
+  imagemTelhado: string | null;
+  imagens: string[];
+}
+
+const cloudinarySincronizado = cloudinarySincronizadoRaw as Record<string, CloudinarySincronizadoEntry>;
 
 const extrairOrdemPreview = (url: string) => {
   const match = url.match(/\/Preview_(\d+)/i);
@@ -85,8 +92,9 @@ const montarFotosCalhas = (imagens: string[], nomeBloco: string) =>
 
 export const blocos: Bloco[] = BLOCOS_COM_PASTA_NO_CLOUDINARY.map((id) => {
   const nome = `Bloco ${id}`;
-  const imagensDetalhe = ordenarImagens(filtrarImagensValidas(cloudinaryPorBloco[String(id)] ?? []));
-  const imagemTelhado = cloudinaryTelhados[String(id)] || imagensDetalhe[0] || MAPA_AEREO_URL;
+  const sincronizado = cloudinarySincronizado[String(id)] ?? { imagemTelhado: null, imagens: [] };
+  const imagensDetalhe = ordenarImagens(filtrarImagensValidas(sincronizado.imagens ?? []));
+  const imagemTelhado = sincronizado.imagemTelhado || imagensDetalhe[0] || MAPA_AEREO_URL;
   const imagensSemTelhado = imagensDetalhe.filter((url) => url !== imagemTelhado);
   const imagensParaGaleria = imagensSemTelhado.length > 0 ? imagensSemTelhado : imagensDetalhe;
 
