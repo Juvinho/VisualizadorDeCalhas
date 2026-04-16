@@ -27,9 +27,12 @@ export default function ImageViewer({ images, blockName, selectedIndex, onSelect
   const imageViewportRef = useRef<HTMLDivElement | null>(null);
   const thumbnailRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const touchStartXRef = useRef<number | null>(null);
+  const dragStartRef = useRef({ mouseX: 0, mouseY: 0, offsetX: 0, offsetY: 0 });
 
   const [zoom, setZoom] = useState(1);
   const [origin, setOrigin] = useState({ x: 50, y: 50 });
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
 
   const hasValidSelection = selectedIndex !== null && selectedIndex >= 0 && selectedIndex < images.length;
   const image = hasValidSelection ? images[selectedIndex] : null;
@@ -80,11 +83,15 @@ export default function ImageViewer({ images, blockName, selectedIndex, onSelect
     if (!hasValidSelection) {
       setZoom(1);
       setOrigin({ x: 50, y: 50 });
+      setOffset({ x: 0, y: 0 });
+      setIsDragging(false);
       return;
     }
 
     setZoom(1);
     setOrigin({ x: 50, y: 50 });
+    setOffset({ x: 0, y: 0 });
+    setIsDragging(false);
   }, [hasValidSelection, selectedIndex]);
 
   useEffect(() => {
@@ -111,29 +118,18 @@ export default function ImageViewer({ images, blockName, selectedIndex, onSelect
     });
   }, []);
 
-  const handleWheel = useCallback(
-    (event: WheelEvent) => {
-      event.preventDefault();
-      setZoomOriginFromPoint(event.clientX, event.clientY);
-
-      const delta = event.deltaY > 0 ? -WHEEL_ZOOM_STEP : WHEEL_ZOOM_STEP;
-      setZoom((currentZoom) => clamp(currentZoom + delta, MIN_ZOOM, MAX_ZOOM));
-    },
-    [setZoomOriginFromPoint],
-  );
-
   useEffect(() => {
-    const viewport = imageViewportRef.current;
-    if (!viewport || !hasValidSelection) {
+    if (!isDragging) {
       return;
     }
 
-    viewport.addEventListener("wheel", handleWheel, { passive: false });
+    const stopDragging = () => setIsDragging(false);
+    window.addEventListener("mouseup", stopDragging);
 
     return () => {
-      viewport.removeEventListener("wheel", handleWheel);
+      window.removeEventListener("mouseup", stopDragging);
     };
-  }, [handleWheel, hasValidSelection, selectedIndex]);
+  }, [isDragging]);
 
   const goToPrevious = () => {
     if (!hasValidSelection) {
@@ -185,10 +181,66 @@ export default function ImageViewer({ images, blockName, selectedIndex, onSelect
     }
   };
 
+  const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (zoom <= MIN_ZOOM) {
+      return;
+    }
+
+    event.preventDefault();
+    setIsDragging(true);
+    dragStartRef.current = {
+      mouseX: event.clientX,
+      mouseY: event.clientY,
+      offsetX: offset.x,
+      offsetY: offset.y,
+    };
+  };
+
+  const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDragging) {
+      return;
+    }
+
+    const dx = event.clientX - dragStartRef.current.mouseX;
+    const dy = event.clientY - dragStartRef.current.mouseY;
+
+    setOffset({
+      x: dragStartRef.current.offsetX + dx,
+      y: dragStartRef.current.offsetY + dy,
+    });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    event.preventDefault();
+
+    const delta = event.deltaY > 0 ? -WHEEL_ZOOM_STEP : WHEEL_ZOOM_STEP;
+    const nextZoom = clamp(zoom + delta, MIN_ZOOM, MAX_ZOOM);
+
+    if (nextZoom === MIN_ZOOM) {
+      setOffset({ x: 0, y: 0 });
+      setOrigin({ x: 50, y: 50 });
+      setIsDragging(false);
+    } else {
+      setZoomOriginFromPoint(event.clientX, event.clientY);
+    }
+
+    setZoom(nextZoom);
+  };
+
   const handleDoubleClick = (event: React.MouseEvent<HTMLDivElement>) => {
     if (zoom > 1) {
       setZoom(1);
       setOrigin({ x: 50, y: 50 });
+      setOffset({ x: 0, y: 0 });
+      setIsDragging(false);
       return;
     }
 
@@ -245,11 +297,21 @@ export default function ImageViewer({ images, blockName, selectedIndex, onSelect
 
         <div
           ref={imageViewportRef}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseLeave}
           onDoubleClick={handleDoubleClick}
+          onWheel={handleWheel}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={() => {
+            touchStartXRef.current = null;
+          }}
           className={`relative flex max-h-[72vh] min-h-[260px] w-full items-center justify-center overflow-hidden rounded-xl bg-black/40 p-2 sm:p-3 ${
-            zoom > 1 ? "cursor-grab" : "cursor-zoom-in"
+            isDragging ? "cursor-grabbing" : zoom > 1 ? "cursor-grab" : "cursor-zoom-in"
           }`}
-          style={{ touchAction: "manipulation" }}
+          style={{ touchAction: "manipulation", userSelect: "none" }}
         >
           <div className="pointer-events-none absolute inset-y-0 left-0 z-20 flex w-[22%] min-w-[72px] items-center justify-start pl-2 sm:w-[104px]">
             <button
@@ -283,9 +345,9 @@ export default function ImageViewer({ images, blockName, selectedIndex, onSelect
 
           <div
             style={{
-              transform: `scale(${zoom})`,
+              transform: `scale(${zoom}) translate(${offset.x / zoom}px, ${offset.y / zoom}px)`,
               transformOrigin: `${origin.x}% ${origin.y}%`,
-              transition: zoom === 1 ? "transform 200ms ease-out" : "none",
+              transition: isDragging ? "none" : "transform 150ms ease",
             }}
           >
             <Image
@@ -295,13 +357,8 @@ export default function ImageViewer({ images, blockName, selectedIndex, onSelect
               height={1200}
               placeholder="blur"
               blurDataURL={getBlurDataURL(1800, 1200)}
-              className="max-h-[66vh] w-auto max-w-full select-none object-contain"
+              className="pointer-events-none max-h-[66vh] w-auto max-w-full select-none object-contain"
               draggable={false}
-              onTouchStart={handleTouchStart}
-              onTouchEnd={handleTouchEnd}
-              onTouchCancel={() => {
-                touchStartXRef.current = null;
-              }}
             />
           </div>
         </div>
