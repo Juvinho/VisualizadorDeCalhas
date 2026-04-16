@@ -1,7 +1,5 @@
-﻿import Image from "next/image";
-import { MAPA_AEREO_URL, blocos } from "../data/blocos";
-import HotspotBloco from "./HotspotBloco";
-import { getBlurDataURL } from "../lib/blurDataUrl";
+﻿import { MAPA_AEREO_URL, blocos } from "../data/blocos";
+import MapaAereoInterativo from "./MapaAereoInterativo";
 
 export default function MapaCondominio() {
   return (
@@ -15,30 +13,17 @@ export default function MapaCondominio() {
 
       <div className="overflow-x-auto rounded-2xl border border-black/10 bg-white p-2 shadow-soft sm:p-3">
         <div className="mx-auto min-w-[680px] max-w-[1200px]">
-          <div className="mapa-container relative w-full overflow-hidden rounded-xl">
-            <Image
-              src={MAPA_AEREO_URL}
-              alt="Imagem aerea do condominio com 12 blocos"
-              width={4096}
-              height={3072}
-              priority
-              placeholder="blur"
-              blurDataURL={getBlurDataURL(4096, 3072)}
-              className="block h-auto w-full object-cover object-center origin-center scale-[1.18]"
-            />
-
-            {blocos.map((bloco) => (
-              <HotspotBloco
-                key={bloco.id}
-                id={bloco.id}
-                nome={bloco.nome}
-                top={bloco.hotspot.top}
-                left={bloco.hotspot.left}
-                width={bloco.hotspot.width}
-                height={bloco.hotspot.height}
-              />
-            ))}
-          </div>
+          <MapaAereoInterativo
+            src={MAPA_AEREO_URL}
+            hotspots={blocos.map((bloco) => ({
+              id: bloco.id,
+              nome: bloco.nome,
+              top: bloco.hotspot.top,
+              left: bloco.hotspot.left,
+              width: bloco.hotspot.width,
+              height: bloco.hotspot.height,
+            }))}
+          />
         </div>
       </div>
 
