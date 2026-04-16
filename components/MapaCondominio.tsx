@@ -1,5 +1,5 @@
 ﻿import Image from "next/image";
-import { blocos } from "../data/blocos";
+import { MAPA_AEREO_URL, blocos } from "../data/blocos";
 import HotspotBloco from "./HotspotBloco";
 import { getBlurDataURL } from "../lib/blurDataUrl";
 
@@ -17,7 +17,7 @@ export default function MapaCondominio() {
         <div className="mx-auto min-w-[680px] max-w-[1200px]">
           <div className="mapa-container relative w-full overflow-hidden rounded-xl">
             <Image
-              src="/images/vista-aerea.jpg"
+              src={MAPA_AEREO_URL}
               alt="Imagem aerea do condominio com 12 blocos"
               width={4096}
               height={3072}

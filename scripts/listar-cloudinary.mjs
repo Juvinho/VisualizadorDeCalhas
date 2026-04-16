@@ -1,69 +1,47 @@
 import { v2 as cloudinary } from "cloudinary";
-import fs from "node:fs";
-import path from "node:path";
+import fs from "fs";
 import dotenv from "dotenv";
 
 dotenv.config({ path: ".env.local" });
 
-const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-const apiKey = process.env.CLOUDINARY_API_KEY;
-const apiSecret = process.env.CLOUDINARY_API_SECRET;
-
-if (!cloudName || !apiKey || !apiSecret) {
-  throw new Error(
-    "Credenciais ausentes. Preencha CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY e CLOUDINARY_API_SECRET em .env.local",
-  );
-}
-
-if (/SUA_API_KEY|SEU_API_SECRET/i.test(`${apiKey} ${apiSecret}`)) {
-  throw new Error("Credenciais placeholder detectadas em .env.local. Substitua por valores reais do Cloudinary.");
-}
-
 cloudinary.config({
-  cloud_name: cloudName,
-  api_key: apiKey,
-  api_secret: apiSecret,
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-async function listarTodos() {
-  let recursos = [];
-  let nextCursor;
+const BLOCOS = [1, 2, 5, 6, 7, 8, 9, 10, 11, 12];
 
-  do {
-    const resultado = await cloudinary.api.resources({
-      type: "upload",
-      max_results: 500,
-      next_cursor: nextCursor,
-    });
+async function listarPorBloco() {
+  const resultado = {};
 
-    recursos = recursos.concat(resultado.resources || []);
-    nextCursor = resultado.next_cursor;
-  } while (nextCursor);
+  for (const num of BLOCOS) {
+    const pasta = `Blocos/${num}`;
+    let imagens = [];
+    let nextCursor = null;
 
-  const saida = recursos.map((r) => ({
-    asset_id: r.asset_id,
-    public_id: r.public_id,
-    original_filename: r.original_filename,
-    folder: r.folder || "",
-    format: r.format,
-    created_at: r.created_at,
-    bytes: r.bytes,
-    width: r.width,
-    height: r.height,
-    secure_url: r.secure_url,
-    url: `https://res.cloudinary.com/${cloudName}/image/upload/q_auto,f_auto/${r.public_id}`,
-  }));
+    do {
+      let search = cloudinary.search.expression(`asset_folder="${pasta}"`).max_results(500);
+      if (nextCursor) {
+        search = search.next_cursor(nextCursor);
+      }
 
-  const outPath = path.join("scripts", "cloudinary-assets.json");
-  fs.writeFileSync(outPath, JSON.stringify(saida, null, 2), "utf8");
+      const res = await search.execute();
 
-  console.log(`Total de imagens encontradas: ${saida.length}`);
-  console.log(`Arquivo gerado: ${outPath}`);
+      imagens = imagens.concat(
+        res.resources.map(
+          (r) => `https://res.cloudinary.com/dau9r1lhb/image/upload/q_auto,f_auto/${r.public_id}`,
+        ),
+      );
+      nextCursor = res.next_cursor;
+    } while (nextCursor);
+
+    resultado[num] = imagens;
+    console.log(`Bloco ${num}: ${imagens.length} imagens`);
+  }
+
+  fs.writeFileSync("scripts/cloudinary-por-bloco.json", JSON.stringify(resultado, null, 2));
+  console.log("\nArquivo salvo em scripts/cloudinary-por-bloco.json");
 }
 
-listarTodos().catch((error) => {
-  const detail =
-    error?.message || error?.error?.message || (typeof error === "string" ? error : JSON.stringify(error));
-  console.error("Falha ao listar assets do Cloudinary:", detail);
-  process.exit(1);
-});
+listarPorBloco();
