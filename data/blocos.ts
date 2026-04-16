@@ -1,4 +1,5 @@
 import cloudinaryPorBlocoRaw from "../scripts/cloudinary-por-bloco.json";
+import cloudinaryTelhadosRaw from "../scripts/cloudinary-telhados.json";
 
 export interface Bloco {
   id: number;
@@ -50,6 +51,7 @@ const DRIVE_LINKS: Record<BlocoId, string> = {
 };
 
 const cloudinaryPorBloco = cloudinaryPorBlocoRaw as Record<string, string[]>;
+const cloudinaryTelhados = cloudinaryTelhadosRaw as Record<string, string>;
 
 const extrairOrdemPreview = (url: string) => {
   const match = url.match(/\/Preview_(\d+)/i);
@@ -83,14 +85,17 @@ const montarFotosCalhas = (imagens: string[], nomeBloco: string) =>
 
 export const blocos: Bloco[] = BLOCOS_COM_PASTA_NO_CLOUDINARY.map((id) => {
   const nome = `Bloco ${id}`;
-  const imagens = ordenarImagens(filtrarImagensValidas(cloudinaryPorBloco[String(id)] ?? []));
+  const imagensDetalhe = ordenarImagens(filtrarImagensValidas(cloudinaryPorBloco[String(id)] ?? []));
+  const imagemTelhado = cloudinaryTelhados[String(id)] || imagensDetalhe[0] || MAPA_AEREO_URL;
+  const imagensSemTelhado = imagensDetalhe.filter((url) => url !== imagemTelhado);
+  const imagensParaGaleria = imagensSemTelhado.length > 0 ? imagensSemTelhado : imagensDetalhe;
 
   return {
     id,
     nome,
     hotspot: HOTSPOTS[id],
-    imagemTelhado: imagens[0] ?? MAPA_AEREO_URL,
-    fotosCalhas: montarFotosCalhas(imagens, nome),
+    imagemTelhado,
+    fotosCalhas: montarFotosCalhas(imagensParaGaleria, nome),
     linkGoogleDrive: DRIVE_LINKS[id],
   };
 });

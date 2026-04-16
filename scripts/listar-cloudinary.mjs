@@ -11,13 +11,56 @@ cloudinary.config({
 });
 
 const BLOCOS = [1, 2, 5, 6, 7, 8, 9, 10, 11, 12];
+const CLOUDINARY_BASE_URL = "https://res.cloudinary.com/dau9r1lhb/image/upload/q_auto,f_auto";
+
+const toCloudinaryUrl = (publicId) => `${CLOUDINARY_BASE_URL}/${publicId}`;
+
+const getPreviewOrder = (resource) => {
+  const text = `${resource.public_id ?? ""} ${resource.display_name ?? ""}`;
+  const match = text.match(/preview_(\d+)/i);
+  return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER;
+};
+
+const compareResources = (a, b) => {
+  const ordemA = getPreviewOrder(a);
+  const ordemB = getPreviewOrder(b);
+
+  if (ordemA !== ordemB) {
+    return ordemA - ordemB;
+  }
+
+  const createdA = a.created_at ?? "";
+  const createdB = b.created_at ?? "";
+
+  if (createdA !== createdB) {
+    return createdA.localeCompare(createdB);
+  }
+
+  return String(a.public_id ?? "").localeCompare(String(b.public_id ?? ""));
+};
+
+const isTelhadoStrict = (resource) => {
+  const text = `${resource.public_id ?? ""} ${resource.display_name ?? ""}`.toLowerCase();
+  return text.includes("telhado") || text.includes("roof");
+};
+
+const isTelhadoHeuristic = (resource) => {
+  const text = `${resource.public_id ?? ""} ${resource.display_name ?? ""}`.toLowerCase();
+
+  if (text.includes("predio") || text.includes("aereo")) {
+    return true;
+  }
+
+  return /preview_1(\D|$)/i.test(text);
+};
 
 async function listarPorBloco() {
-  const resultado = {};
+  const resultadoDetalhes = {};
+  const resultadoTelhados = {};
 
   for (const num of BLOCOS) {
     const pasta = `Blocos/${num}`;
-    let imagens = [];
+    let recursos = [];
     let nextCursor = null;
 
     do {
@@ -28,20 +71,41 @@ async function listarPorBloco() {
 
       const res = await search.execute();
 
-      imagens = imagens.concat(
-        res.resources.map(
-          (r) => `https://res.cloudinary.com/dau9r1lhb/image/upload/q_auto,f_auto/${r.public_id}`,
-        ),
-      );
+      recursos = recursos.concat(res.resources ?? []);
       nextCursor = res.next_cursor;
     } while (nextCursor);
 
-    resultado[num] = imagens;
-    console.log(`Bloco ${num}: ${imagens.length} imagens`);
+    const recursosOrdenados = [...recursos].sort(compareResources);
+
+    const telhadoEstrito = recursosOrdenados.find(isTelhadoStrict);
+    const telhadoHeuristico = recursosOrdenados.find(isTelhadoHeuristic);
+    const telhadoSelecionado = telhadoEstrito ?? telhadoHeuristico ?? recursosOrdenados[0] ?? null;
+
+    const telhadoUrl = telhadoSelecionado ? toCloudinaryUrl(telhadoSelecionado.public_id) : "";
+
+    const detalhes = recursosOrdenados
+      .filter((resource) => (telhadoSelecionado ? resource.public_id !== telhadoSelecionado.public_id : true))
+      .map((resource) => toCloudinaryUrl(resource.public_id));
+
+    resultadoDetalhes[num] = detalhes;
+    resultadoTelhados[num] = telhadoUrl;
+
+    if (telhadoEstrito) {
+      console.log(`Bloco ${num}: telhado encontrado por nome (${telhadoEstrito.public_id})`);
+    } else if (telhadoHeuristico) {
+      console.log(`Bloco ${num}: telhado selecionado por heuristica (${telhadoHeuristico.public_id})`);
+    } else if (telhadoSelecionado) {
+      console.log(`Bloco ${num}: sem marcador de telhado; usando primeiro asset (${telhadoSelecionado.public_id})`);
+    } else {
+      console.log(`Bloco ${num}: sem imagens na pasta`);
+    }
+
+    console.log(`Bloco ${num}: ${detalhes.length} imagens de detalhe`);
   }
 
-  fs.writeFileSync("scripts/cloudinary-por-bloco.json", JSON.stringify(resultado, null, 2));
-  console.log("\nArquivo salvo em scripts/cloudinary-por-bloco.json");
+  fs.writeFileSync("scripts/cloudinary-por-bloco.json", JSON.stringify(resultadoDetalhes, null, 2));
+  fs.writeFileSync("scripts/cloudinary-telhados.json", JSON.stringify(resultadoTelhados, null, 2));
+  console.log("\nArquivos salvos em scripts/cloudinary-por-bloco.json e scripts/cloudinary-telhados.json");
 }
 
 listarPorBloco();
